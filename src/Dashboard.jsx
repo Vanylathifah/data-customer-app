@@ -14,6 +14,10 @@ import {
   CheckCircle,
   LayoutDashboard,
   ChevronDown,
+  Trash2,
+  Edit,
+  X,
+  AlertTriangle,
 } from 'lucide-react';
 
 /**
@@ -56,6 +60,21 @@ function Dashboard() {
   const [loading, setLoading] = useState({ sekolah: false, pembelian: false });
   /** State pesan error dari API */
   const [apiError, setApiError] = useState({ sekolah: '', pembelian: '' });
+
+  // ── State: Modal Edit & Delete ──
+  const [editModal, setEditModal] = useState({ isOpen: false, type: '', data: null });
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, type: '', id: null });
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState('');
+
+  const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   /**
    * Fetch data sekolah dari backend.
@@ -174,8 +193,90 @@ function Dashboard() {
     }
   };
 
+  /** Handler untuk membuka modal edit */
+  const openEditModal = (type, data) => {
+    setModalError('');
+    if (type === 'sekolah') {
+      setEditModal({ isOpen: true, type, data: { ...data } });
+    } else if (type === 'pembelian') {
+      setEditModal({ 
+        isOpen: true, 
+        type, 
+        data: { 
+          ...data, 
+          tanggal_pembelian: formatDateForInput(data.tanggal_pembelian) 
+        } 
+      });
+    }
+  };
+
+  /** Handler submit modal edit */
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setModalLoading(true);
+    setModalError('');
+    
+    try {
+      if (editModal.type === 'sekolah') {
+        await axios.put(`${API_BASE}/sekolah/${editModal.data.id_sekolah}`, {
+          nama_sekolah: editModal.data.nama_sekolah,
+          alamat: editModal.data.alamat,
+        });
+        fetchSekolah();
+        fetchPembelian();
+      } else if (editModal.type === 'pembelian') {
+        await axios.put(`${API_BASE}/pembelian/${editModal.data.id_pembelian}`, {
+          id_sekolah: editModal.data.id_sekolah,
+          varian_produk: editModal.data.varian_produk,
+          tanggal_pembelian: editModal.data.tanggal_pembelian,
+        });
+        fetchPembelian();
+      }
+      setEditModal({ isOpen: false, type: '', data: null });
+    } catch (err) {
+      setModalError(err.response?.data?.message || 'Gagal menyimpan perubahan.');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  /** Handler untuk membuka modal konfirmasi delete */
+  const openDeleteModal = (type, id) => {
+    setModalError('');
+    setDeleteModal({ isOpen: true, type, id });
+  };
+
+  /** Handler submit modal delete */
+  const handleDeleteConfirm = async () => {
+    setModalLoading(true);
+    setModalError('');
+
+    try {
+      if (deleteModal.type === 'sekolah') {
+        await axios.delete(`${API_BASE}/sekolah/${deleteModal.id}`);
+        fetchSekolah();
+        fetchPembelian();
+      } else if (deleteModal.type === 'pembelian') {
+        await axios.delete(`${API_BASE}/pembelian/${deleteModal.id}`);
+        fetchPembelian();
+      }
+      setDeleteModal({ isOpen: false, type: '', id: null });
+    } catch (err) {
+      setModalError(err.response?.data?.message || 'Gagal menghapus data.');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   return (
     <div style={styles.wrapper}>
+      <style>{`
+        @keyframes modalSlideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
       {/* ── Background Decorative Blobs ── */}
       <div style={styles.blobTopRight} />
       <div style={styles.blobBottomLeft} />
@@ -446,17 +547,36 @@ function Dashboard() {
                     <th style={styles.th}>No</th>
                     <th style={styles.th}>Nama Sekolah</th>
                     <th style={styles.th}>Alamat</th>
+                    <th style={{ ...styles.th, textAlign: 'center' }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {listSekolah.length === 0 ? (
-                    <tr><td colSpan={3} style={styles.tdEmpty}>Belum ada data sekolah.</td></tr>
+                    <tr><td colSpan={4} style={styles.tdEmpty}>Belum ada data sekolah.</td></tr>
                   ) : (
                     listSekolah.map((sek, idx) => (
                       <tr key={sek.id_sekolah} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
                         <td style={styles.tdNum}>{idx + 1}</td>
                         <td style={styles.td}>{sek.nama_sekolah}</td>
                         <td style={styles.td}>{sek.alamat}</td>
+                        <td style={{ ...styles.td, textAlign: 'center' }}>
+                          <div style={styles.actionGroup}>
+                            <button 
+                              onClick={() => openEditModal('sekolah', sek)}
+                              style={styles.btnActionEdit} title="Edit Sekolah"
+                              type="button"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button 
+                              onClick={() => openDeleteModal('sekolah', sek.id_sekolah)}
+                              style={styles.btnActionDelete} title="Hapus Sekolah"
+                              type="button"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -484,11 +604,12 @@ function Dashboard() {
                     <th style={styles.th}>Sekolah</th>
                     <th style={styles.th}>Varian Produk</th>
                     <th style={styles.th}>Tanggal</th>
+                    <th style={{ ...styles.th, textAlign: 'center' }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {listPembelian.length === 0 ? (
-                    <tr><td colSpan={4} style={styles.tdEmpty}>Belum ada data pembelian.</td></tr>
+                    <tr><td colSpan={5} style={styles.tdEmpty}>Belum ada data pembelian.</td></tr>
                   ) : (
                     listPembelian.map((beli, idx) => (
                       <tr key={beli.id_pembelian} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
@@ -504,6 +625,24 @@ function Dashboard() {
                               })
                             : '-'}
                         </td>
+                        <td style={{ ...styles.td, textAlign: 'center' }}>
+                          <div style={styles.actionGroup}>
+                            <button 
+                              onClick={() => openEditModal('pembelian', beli)}
+                              style={styles.btnActionEdit} title="Edit Pembelian"
+                              type="button"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button 
+                              onClick={() => openDeleteModal('pembelian', beli.id_pembelian)}
+                              style={styles.btnActionDelete} title="Hapus Pembelian"
+                              type="button"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -514,6 +653,139 @@ function Dashboard() {
 
         </div>
       </main>
+
+      {/* ── Modals ── */}
+      
+      {/* 1. Modal Edit */}
+      {editModal.isOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>
+                Edit Data {editModal.type === 'sekolah' ? 'Sekolah' : 'Pembelian'}
+              </h3>
+              <button onClick={() => setEditModal({ isOpen: false, type: '', data: null })} style={styles.closeBtn} type="button">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleEditSubmit} style={styles.modalBody}>
+              {editModal.type === 'sekolah' && (
+                <>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Nama Sekolah</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={editModal.data?.nama_sekolah || ''}
+                      onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, nama_sekolah: e.target.value } })}
+                      style={styles.input} 
+                    />
+                  </div>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Alamat</label>
+                    <textarea 
+                      required 
+                      rows={3}
+                      value={editModal.data?.alamat || ''}
+                      onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, alamat: e.target.value } })}
+                      style={{ ...styles.input, ...styles.textarea }} 
+                    />
+                  </div>
+                </>
+              )}
+
+              {editModal.type === 'pembelian' && (
+                <>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Pilih Sekolah</label>
+                    <select
+                      required
+                      value={editModal.data?.id_sekolah || ''}
+                      onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, id_sekolah: e.target.value } })}
+                      style={{ ...styles.input, ...styles.select }}
+                    >
+                      <option value="" disabled>Pilih sekolah...</option>
+                      {listSekolah.map((sek) => (
+                        <option key={sek.id_sekolah} value={sek.id_sekolah}>{sek.nama_sekolah}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Varian Produk</label>
+                    <select
+                      required
+                      value={editModal.data?.varian_produk || ''}
+                      onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, varian_produk: e.target.value } })}
+                      style={{ ...styles.input, ...styles.select }}
+                    >
+                      <option value="" disabled>Pilih varian produk...</option>
+                      {VARIAN_PRODUK.map((varian) => (
+                        <option key={varian} value={varian}>{varian}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Tanggal Pembelian</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={editModal.data?.tanggal_pembelian || ''}
+                      onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, tanggal_pembelian: e.target.value } })}
+                      style={styles.input} 
+                    />
+                  </div>
+                </>
+              )}
+
+              {modalError && (
+                <div style={styles.errorBox}>
+                  <span style={styles.errorText}>⚠ {modalError}</span>
+                </div>
+              )}
+
+              <div style={styles.modalFooter}>
+                <button type="button" onClick={() => setEditModal({ isOpen: false, type: '', data: null })} style={styles.btnCancel}>
+                  Batal
+                </button>
+                <button type="submit" style={styles.btnSave} disabled={modalLoading}>
+                  {modalLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Modal Konfirmasi Delete */}
+      {deleteModal.isOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContentSmall}>
+            <div style={styles.modalIconBox}>
+              <AlertTriangle size={32} color="#ef4444" />
+            </div>
+            <h3 style={styles.modalTitleCenter}>Konfirmasi Hapus</h3>
+            <p style={styles.modalDescCenter}>
+              Apakah Anda yakin ingin menghapus data {deleteModal.type} ini? Tindakan ini tidak dapat dibatalkan.
+            </p>
+
+            {modalError && (
+              <div style={styles.errorBox}>
+                <span style={styles.errorText}>⚠ {modalError}</span>
+              </div>
+            )}
+
+            <div style={styles.modalFooterCenter}>
+              <button type="button" onClick={() => setDeleteModal({ isOpen: false, type: '', id: null })} style={styles.btnCancel}>
+                Batal
+              </button>
+              <button type="button" onClick={handleDeleteConfirm} style={styles.btnDelete} disabled={modalLoading}>
+                {modalLoading ? 'Menghapus...' : 'Ya, Hapus Data'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Footer ── */}
       <footer style={styles.footer}>
@@ -943,6 +1215,179 @@ const styles = {
     fontSize: '13px',
     borderTop: '1px solid rgba(148, 163, 184, 0.06)',
     marginTop: '40px',
+  },
+
+  // ── Action Buttons ──
+  actionGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+  },
+  btnActionEdit: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '32px',
+    height: '32px',
+    borderRadius: '8px',
+    border: '1px solid rgba(16, 185, 129, 0.2)',
+    background: 'rgba(16, 185, 129, 0.1)',
+    color: '#10b981',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  btnActionDelete: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '32px',
+    height: '32px',
+    borderRadius: '8px',
+    border: '1px solid rgba(239, 68, 68, 0.2)',
+    background: 'rgba(239, 68, 68, 0.1)',
+    color: '#ef4444',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+
+  // ── Modals ──
+  modalOverlay: {
+    position: 'fixed',
+    top: 0, left: 0, right: 0, bottom: 0,
+    background: 'rgba(15, 23, 42, 0.75)',
+    backdropFilter: 'blur(8px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+    padding: '20px',
+  },
+  modalContent: {
+    background: '#1e293b',
+    border: '1px solid rgba(148, 163, 184, 0.1)',
+    borderRadius: '20px',
+    width: '100%',
+    maxWidth: '500px',
+    overflow: 'hidden',
+    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+    animation: 'modalSlideUp 0.3s ease-out',
+  },
+  modalContentSmall: {
+    background: '#1e293b',
+    border: '1px solid rgba(148, 163, 184, 0.1)',
+    borderRadius: '20px',
+    width: '100%',
+    maxWidth: '400px',
+    padding: '32px 24px',
+    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+    animation: 'modalSlideUp 0.3s ease-out',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  modalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '20px 24px',
+    borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+    background: 'rgba(15, 23, 42, 0.4)',
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: '18px',
+    fontWeight: '600',
+    color: '#f1f5f9',
+  },
+  closeBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: '#94a3b8',
+    cursor: 'pointer',
+    padding: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '6px',
+    transition: 'background 0.2s',
+  },
+  modalBody: {
+    padding: '24px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
+  },
+  modalFooter: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    marginTop: '8px',
+  },
+  modalIconBox: {
+    width: '64px',
+    height: '64px',
+    borderRadius: '50%',
+    background: 'rgba(239, 68, 68, 0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: '20px',
+  },
+  modalTitleCenter: {
+    margin: 0,
+    fontSize: '20px',
+    fontWeight: '600',
+    color: '#f1f5f9',
+    textAlign: 'center',
+    marginBottom: '8px',
+  },
+  modalDescCenter: {
+    margin: 0,
+    fontSize: '14px',
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: '24px',
+    lineHeight: '1.5',
+  },
+  modalFooterCenter: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '12px',
+    width: '100%',
+  },
+  btnCancel: {
+    padding: '10px 20px',
+    borderRadius: '10px',
+    border: '1px solid rgba(148, 163, 184, 0.2)',
+    background: 'transparent',
+    color: '#cbd5e1',
+    fontSize: '14px',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  btnSave: {
+    padding: '10px 20px',
+    borderRadius: '10px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    color: '#fff',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  btnDelete: {
+    padding: '10px 20px',
+    borderRadius: '10px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+    color: '#fff',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
   },
 };
 

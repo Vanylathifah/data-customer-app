@@ -204,6 +204,124 @@ app.post('/api/pembelian', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
+// Endpoint: PUT & DELETE /api/sekolah
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * PUT /api/sekolah/:id
+ * Mengupdate data sekolah
+ */
+app.put('/api/sekolah/:id', async (req, res) => {
+  const { id } = req.params;
+  const { nama_sekolah, alamat } = req.body;
+
+  if (!nama_sekolah || typeof nama_sekolah !== 'string' || nama_sekolah.trim() === '') {
+    return res.status(400).json({ success: false, message: 'Nama sekolah tidak boleh kosong.' });
+  }
+  if (!alamat || typeof alamat !== 'string' || alamat.trim() === '') {
+    return res.status(400).json({ success: false, message: 'Alamat tidak boleh kosong.' });
+  }
+
+  try {
+    const [result] = await pool.execute(
+      'UPDATE sekolah SET nama_sekolah = ?, alamat = ? WHERE id_sekolah = ?',
+      [nama_sekolah.trim(), alamat.trim(), id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Data sekolah tidak ditemukan.' });
+    }
+
+    return res.status(200).json({ success: true, message: 'Data sekolah berhasil diupdate.' });
+  } catch (err) {
+    console.error('[PUT /api/sekolah] Error:', err.message);
+    return res.status(500).json({ success: false, message: 'Gagal mengupdate data sekolah.', error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/sekolah/:id
+ * Menghapus data sekolah
+ */
+app.delete('/api/sekolah/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await pool.execute('DELETE FROM sekolah WHERE id_sekolah = ?', [id]);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Data sekolah tidak ditemukan.' });
+    }
+
+    return res.status(200).json({ success: true, message: 'Data sekolah berhasil dihapus.' });
+  } catch (err) {
+    console.error('[DELETE /api/sekolah] Error:', err.message);
+    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.status(400).json({ success: false, message: 'Gagal menghapus: Sekolah ini masih memiliki data pembelian.' });
+    }
+    return res.status(500).json({ success: false, message: 'Gagal menghapus data sekolah.', error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// Endpoint: PUT & DELETE /api/pembelian
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * PUT /api/pembelian/:id
+ * Mengupdate data pembelian
+ */
+app.put('/api/pembelian/:id', async (req, res) => {
+  const { id } = req.params;
+  const { id_sekolah, varian_produk, tanggal_pembelian } = req.body;
+
+  if (!id_sekolah) {
+    return res.status(400).json({ success: false, message: 'Sekolah harus dipilih.' });
+  }
+  if (!varian_produk || !VALID_VARIAN.includes(varian_produk)) {
+    return res.status(400).json({ success: false, message: 'Varian produk tidak valid.' });
+  }
+  if (!tanggal_pembelian || !/^\d{4}-\d{2}-\d{2}$/.test(tanggal_pembelian)) {
+    return res.status(400).json({ success: false, message: 'Format tanggal tidak valid. Gunakan YYYY-MM-DD.' });
+  }
+
+  try {
+    const [result] = await pool.execute(
+      'UPDATE pembelian SET id_sekolah = ?, varian_produk = ?, tanggal_pembelian = ? WHERE id_pembelian = ?',
+      [id_sekolah, varian_produk, tanggal_pembelian, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Data pembelian tidak ditemukan.' });
+    }
+
+    return res.status(200).json({ success: true, message: 'Data pembelian berhasil diupdate.' });
+  } catch (err) {
+    console.error('[PUT /api/pembelian] Error:', err.message);
+    return res.status(500).json({ success: false, message: 'Gagal mengupdate data pembelian.', error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/pembelian/:id
+ * Menghapus data pembelian
+ */
+app.delete('/api/pembelian/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await pool.execute('DELETE FROM pembelian WHERE id_pembelian = ?', [id]);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Data pembelian tidak ditemukan.' });
+    }
+
+    return res.status(200).json({ success: true, message: 'Data pembelian berhasil dihapus.' });
+  } catch (err) {
+    console.error('[DELETE /api/pembelian] Error:', err.message);
+    return res.status(500).json({ success: false, message: 'Gagal menghapus data pembelian.', error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
 // Start Server
 // ════════════════════════════════════════════════════════════════
 
